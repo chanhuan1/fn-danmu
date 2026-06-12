@@ -1,0 +1,15 @@
+services:
+  danmaku-proxy:
+    image: chanhuan01/fntv-danmu:latest
+    ports:
+      - "3000:3000"
+      - "3443:3443"
+    environment:
+      - FN_URL=http://192.168.10.252:5666    # 改成你的飞牛影视地址
+      - DM_URL=http://192.168.10.252:9321    # 改成你的 danmu-api 地址
+      - PORT=3000
+      - HTTPS_PORT=3443
+    volumes:
+      - ./certs:/app/certs
+    restart: unless-stopped
+    init: true
