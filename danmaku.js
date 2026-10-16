@@ -751,6 +751,7 @@
         sTxt.style.color = err ? '#ff6666' : '#fff';
         sSub.textContent = sub || '';
         sSub.style.color = '#aaa';
+        if (sBar._retry) sBar._retry.style.display = err ? 'block' : 'none';
         clearTimeout(sBar._t);
         sBar.style.opacity = '1';
         sBar._t = setTimeout(() => sBar.style.opacity = '0', 8000);
@@ -763,7 +764,12 @@
             'transition:opacity .4s;opacity:0;backdrop-filter:blur(6px);display:flex;flex-direction:column;gap:4px;');
         sTxt = $('div', null, 'font-weight:500;color:#fff;');
         sSub = $('div', null, 'font-size:12px;color:#aaa;');
-        sBar.append(sTxt, sSub);
+        const retryLink = $('span', '刷新网页重试',
+            'display:none;margin-top:2px;font-size:12px;color:#4f8cff;cursor:pointer;' +
+            'text-decoration:underline;pointer-events:auto;width:fit-content;');
+        retryLink.onclick = () => location.reload();
+        sBar._retry = retryLink;
+        sBar.append(sTxt, sSub, retryLink);
         c.appendChild(sBar);
     }
 
