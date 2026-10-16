@@ -16,6 +16,18 @@
     const STORE = 'fn_dm_cfg_v72';
     const FONT  = '"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif';
 
+    // ─── 设计令牌：背景层级 / 文本层级 / 主色 / 圆角 / 过渡 ───
+    const BG0 = 'rgba(22,22,24,.97)';        // 面板底
+    const BG1 = '#232326';                   // 卡片
+    const BG2 = '#2b2b2f';                   // hover
+    const BD = 'rgba(255,255,255,.07)';      // 弱边框
+    const T0 = '#f2f2f4';                    // 主文本
+    const T1 = '#9a9aa2';                    // 次文本
+    const T2 = '#5c5c64';                    // 辅助文本
+    const AC = '#5a8dff';                    // 主色（仅激活态）
+    const R  = '10px';                       // 统一圆角
+    const TR = '.18s cubic-bezier(.4,0,.2,1)'; // 统一过渡
+
     // ─── 默认配置 ───
     const DEF = {
         on: true, opacity: 0.85, area: 35, fontSize: 22,
@@ -664,8 +676,8 @@
 
     function setupDanmakuTouch(container) {
         tooltipEl = $('div', null,
-            'position:absolute;z-index:999998;background:rgba(0,0,0,.85);color:#fff;' +
-            'padding:6px 14px;border-radius:8px;font-size:14px;font-weight:bold;' +
+            'position:absolute;z-index:999998;background:rgba(24,24,26,.92);color:#f2f2f4;' +
+            'padding:5px 12px;border-radius:8px;font-size:13px;font-weight:500;' +
             'pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap;backdrop-filter:blur(8px);');
         container.appendChild(tooltipEl);
 
@@ -759,13 +771,14 @@
 
     function mkStatus(c) {
         sBar = $('div', null,
-            'position:absolute;left:20px;bottom:60px;z-index:99999;background:rgba(0,0,0,.75);' +
-            'padding:10px 18px;border-radius:10px;font-size:14px;pointer-events:none;' +
-            'transition:opacity .4s;opacity:0;backdrop-filter:blur(6px);display:flex;flex-direction:column;gap:4px;');
-        sTxt = $('div', null, 'font-weight:500;color:#fff;');
-        sSub = $('div', null, 'font-size:12px;color:#aaa;');
+            'position:absolute;left:20px;bottom:60px;z-index:99999;background:rgba(24,24,26,.88);' +
+            'padding:10px 16px;border-radius:10px;font-size:13px;pointer-events:none;' +
+            'transition:opacity .3s;opacity:0;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:3px;' +
+            'border:1px solid rgba(255,255,255,.06);');
+        sTxt = $('div', null, 'font-weight:500;color:#f2f2f4;');
+        sSub = $('div', null, 'font-size:12px;color:#9a9aa2;');
         const retryLink = $('span', '刷新网页重试',
-            'display:none;margin-top:2px;font-size:12px;color:#4f8cff;cursor:pointer;' +
+            'display:none;margin-top:2px;font-size:12px;color:#5a8dff;cursor:pointer;' +
             'text-decoration:underline;pointer-events:auto;width:fit-content;');
         retryLink.onclick = () => location.reload();
         sBar._retry = retryLink;
@@ -780,24 +793,24 @@
 
     function mkPanel(c, info) {
         const btn = $('div', '弹幕',
-            'position:absolute;top:14px;right:70px;z-index:999999;background:rgba(20,20,20,.85);' +
-            'backdrop-filter:blur(10px);color:#fff;border-radius:10px;padding:8px 16px;cursor:pointer;' +
-            'font-size:14px;transition:opacity .3s,transform .2s,background .2s,border-color .2s;border:1px solid rgba(255,255,255,.1);' +
-            'box-shadow:0 2px 12px rgba(0,0,0,.4);pointer-events:auto;');
+            'position:absolute;top:14px;right:70px;z-index:999999;background:rgba(24,24,26,.82);' +
+            'backdrop-filter:blur(16px);color:#f2f2f4;border-radius:8px;padding:7px 16px;cursor:pointer;' +
+            'font-size:13px;font-weight:500;transition:opacity .3s,background .18s,border-color .18s;border:1px solid rgba(255,255,255,.08);' +
+            'box-shadow:0 1px 6px rgba(0,0,0,.35);pointer-events:auto;letter-spacing:.5px;');
         btn._dmPE = 'auto';
 
-        cntEl = $('span', '', 'font-size:12px;color:#aaa;margin-left:4px;');
+        cntEl = $('span', '', 'font-size:11px;color:#8a8a92;margin-left:5px;font-weight:400;');
         btn.appendChild(cntEl);
-        btn.onmouseenter = () => { btn.style.transform = 'scale(1.05)'; btn.style.background = 'rgba(40,40,40,.9)'; btn.style.borderColor = 'rgba(79,140,255,.4)'; };
-        btn.onmouseleave = () => btn.style.transform = 'scale(1)';
+        btn.onmouseenter = () => { btn.style.background = 'rgba(36,36,40,.92)'; btn.style.borderColor = 'rgba(255,255,255,.16)'; };
+        btn.onmouseleave = () => { btn.style.background = 'rgba(24,24,26,.82)'; btn.style.borderColor = 'rgba(255,255,255,.08)'; };
 
         const pn = $('div', null,
             'position:absolute;top:58px;right:70px;width:400px;max-width:calc(100% - 20px);' +
-            'height:560px;max-height:calc(100% - 70px);z-index:999999;background:rgba(18,18,18,.96);' +
-            'backdrop-filter:blur(24px);border-radius:14px;overflow:hidden;' +
-            'border:1px solid rgba(255,255,255,.1);box-shadow:0 16px 48px rgba(0,0,0,.7),0 0 0 1px rgba(79,140,255,.06);' +
+            'height:560px;max-height:calc(100% - 70px);z-index:999999;background:' + BG0 + ';' +
+            'backdrop-filter:blur(28px);border-radius:12px;overflow:hidden;' +
+            'border:1px solid rgba(255,255,255,.09);box-shadow:0 24px 64px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.4);' +
             'pointer-events:none;display:none;flex-direction:column;' +
-            'transform-origin:top right;transition:opacity .25s cubic-bezier(.4,0,.2,1),transform .25s cubic-bezier(.4,0,.2,1);');
+            'transform-origin:top right;transition:opacity .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.4,0,.2,1);');
         pn._dmPE = 'auto';
 
         // 点击面板外部关闭（透明遮罩）
@@ -808,26 +821,26 @@
         function closePanel() {
             pn.style.display = 'none';
             overlay.style.display = 'none';
-            btn.style.borderColor = 'rgba(255,255,255,.1)';
-            btn.style.background = 'rgba(20,20,20,.85)';
+            btn.style.borderColor = 'rgba(255,255,255,.08)';
+            btn.style.background = 'rgba(24,24,26,.82)';
             showGuide = false;
             ensureLoop();
         }
 
         const tabBar = $('div', null,
-            'display:flex;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;position:relative;');
+            'display:flex;border-bottom:1px solid ' + BD + ';flex-shrink:0;position:relative;');
         const tabS = $('div', '弹幕搜索',
-            'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;' +
-            'color:#fff;transition:color .2s;');
+            'flex:1;text-align:center;padding:13px;cursor:pointer;font-size:13px;font-weight:500;' +
+            'color:#f2f2f4;transition:color .18s;letter-spacing:.5px;');
         const tabG = $('div', '设置',
-            'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;color:#888;transition:color .2s;');
+            'flex:1;text-align:center;padding:13px;cursor:pointer;font-size:13px;font-weight:500;color:#8a8a92;transition:color .18s;letter-spacing:.5px;');
         const tabInd = $('div', null,
-            'position:absolute;bottom:0;left:0;width:50%;height:2px;background:#4f8cff;' +
+            'position:absolute;bottom:0;left:0;width:50%;height:2px;background:' + AC + ';' +
             'transition:transform .25s cubic-bezier(.4,0,.2,1);');
         tabBar.append(tabS, tabG, tabInd);
 
         const vS = $('div', null, 'flex:1;overflow:hidden;display:flex;flex-direction:column;');
-        const vG = $('div', null, 'flex:1;overflow-y:auto;display:none;padding:16px;box-sizing:border-box;');
+        const vG = $('div', null, 'flex:1;overflow-y:auto;display:none;padding:20px;box-sizing:border-box;');
 
         buildSearch(vS, info);
         buildSettings(vG);
@@ -851,8 +864,8 @@
             const vis = pn.style.display === 'none';
             pn.style.display = vis ? 'flex' : 'none';
             overlay.style.display = vis ? 'block' : 'none';
-            btn.style.borderColor = vis ? 'rgba(79,140,255,.5)' : 'rgba(255,255,255,.1)';
-            btn.style.background = vis ? 'rgba(30,30,30,.95)' : 'rgba(20,20,20,.85)';
+            btn.style.borderColor = vis ? 'rgba(90,141,255,.45)' : 'rgba(255,255,255,.08)';
+            btn.style.background = vis ? 'rgba(32,32,38,.95)' : 'rgba(24,24,26,.82)';
             if (vis) {
                 pn.style.opacity = '0';
                 pn.style.transform = 'scale(.95) translateY(-4px)';
@@ -883,20 +896,19 @@
         const inp = document.createElement('input');
         inp.placeholder = '输入动漫名称';
         inp.style.cssText =
-            'flex:1;background:#252525;border:1px solid rgba(255,255,255,.08);outline:none;color:#fff;border-radius:10px;' +
-            'padding:11px 14px;font-size:14px;transition:border-color .2s,box-shadow .2s;box-sizing:border-box;';
-        inp.onfocus = () => { inp.style.borderColor = 'rgba(79,140,255,.5)'; inp.style.boxShadow = '0 0 0 3px rgba(79,140,255,.12)'; };
-        inp.onblur = () => { inp.style.borderColor = 'rgba(255,255,255,.08)'; inp.style.boxShadow = 'none'; };
+            'flex:1;background:#1e1e21;border:1px solid rgba(255,255,255,.06);outline:none;color:#f2f2f4;border-radius:8px;' +
+            'padding:10px 14px;font-size:13px;transition:border-color .18s,box-shadow .18s;box-sizing:border-box;';
+        inp.onfocus = () => { inp.style.borderColor = 'rgba(90,141,255,.55)'; inp.style.boxShadow = '0 0 0 3px rgba(90,141,255,.1)'; };
+        inp.onblur = () => { inp.style.borderColor = 'rgba(255,255,255,.06)'; inp.style.boxShadow = 'none'; };
+        inp.style.setProperty('font-family', FONT);
 
         const go = $('button', '搜索',
-            'background:#4f8cff;border:none;color:#fff;border-radius:10px;padding:0 18px;cursor:pointer;font-size:14px;transition:background .2s,transform .15s;');
-        go.onmouseenter = () => go.style.background = '#5c97ff';
-        go.onmouseleave = () => go.style.background = '#4f8cff';
-        go.onmousedown = () => go.style.transform = 'scale(.96)';
-        go.onmouseup = () => go.style.transform = 'scale(1)';
+            'background:#2e2e33;border:none;color:#f2f2f4;border-radius:8px;padding:0 18px;cursor:pointer;font-size:13px;font-weight:500;transition:background .18s;letter-spacing:.5px;');
+        go.onmouseenter = () => go.style.background = '#38383e';
+        go.onmouseleave = () => go.style.background = '#2e2e33';
         wrap.append(inp, go);
 
-        const tip = $('div', null, 'padding:0 14px 8px;color:#999;font-size:13px;flex-shrink:0;');
+        const tip = $('div', null, 'padding:0 14px 8px;color:#8a8a92;font-size:12px;flex-shrink:0;');
         const list = $('div', null, 'flex:1;overflow-y:auto;padding:0 10px 10px;');
 
         root.append(wrap, tip, list);
@@ -920,7 +932,7 @@
                     const empty = $('div', null, 'color:#999;padding:20px;text-align:center;');
                     empty.innerHTML = '无结果 ';
                     const retry = $('span', '重新搜索',
-                        'color:#4f8cff;cursor:pointer;text-decoration:underline;');
+                        'color:#5a8dff;cursor:pointer;text-decoration:underline;');
                     retry.onclick = () => doSearch(kw);
                     empty.appendChild(retry);
                     list.appendChild(empty);
@@ -928,15 +940,15 @@
                 }
                 for (const a of animes) {
                     const it = $('div', null,
-                        'background:#252525;border:1px solid transparent;border-radius:12px;margin-bottom:8px;padding:13px 14px;cursor:pointer;transition:background .2s,border-color .2s;');
-                    it.onmouseenter = () => { it.style.background = '#2d2d2d'; it.style.borderColor = 'rgba(79,140,255,.35)'; };
-                    it.onmouseleave = () => { it.style.background = '#252525'; it.style.borderColor = 'transparent'; };
-                    it.innerHTML = `<div style="color:#fff;font-size:15px;font-weight:600;">${a.animeTitle || a.title || a.name}</div>`;
+                        'background:#232326;border-radius:10px;margin-bottom:6px;padding:12px 14px;cursor:pointer;transition:background .18s;');
+                    it.onmouseenter = () => { it.style.background = '#2b2b2f'; };
+                    it.onmouseleave = () => { it.style.background = '#232326'; };
+                    it.innerHTML = `<div style="color:#f2f2f4;font-size:13px;font-weight:500;">${a.animeTitle || a.title || a.name}</div>`;
 
                     it.onclick = async () => {
                         // 返回按钮
                         const backRow = $('div', '← 返回搜索结果',
-                            'color:#4f8cff;font-size:13px;cursor:pointer;padding:6px 4px;width:fit-content;');
+                            'color:#5a8dff;font-size:12px;cursor:pointer;padding:4px 2px 10px;width:fit-content;');
                         backRow.onclick = () => doSearch(kw);
                         backRow.onmouseenter = () => backRow.style.textDecoration = 'underline';
                         backRow.onmouseleave = () => backRow.style.textDecoration = 'none';
@@ -953,9 +965,10 @@
                         for (const ep of eps) {
                             const lb = `S${ep.seasonId?.split('-').pop() || '?'} E${ep.episodeNumber || '?'}`;
                             const ed = $('div', `<div style="color:#fff;font-size:14px;">${lb}</div>`,
-                                'background:#252525;border:1px solid transparent;border-radius:10px;margin-bottom:6px;padding:11px 14px;cursor:pointer;transition:background .2s,border-color .2s;');
-                            ed.onmouseenter = () => { ed.style.background = '#2d2d2d'; ed.style.borderColor = 'rgba(79,140,255,.35)'; };
-                            ed.onmouseleave = () => { ed.style.background = '#252525'; ed.style.borderColor = 'transparent'; };
+                                'background:#232326;border-radius:8px;margin-bottom:4px;padding:10px 14px;cursor:pointer;transition:background .18s;');
+                            ed.onmouseenter = () => { ed.style.background = '#2b2b2f'; };
+                            ed.onmouseleave = () => { ed.style.background = '#232326'; };
+                            ed.firstChild.style.cssText = 'color:#f2f2f4;font-size:13px;font-weight:400;';
 
                             ed.onclick = async () => {
                                 ed.innerHTML = '<div style="color:#4f8cff">加载中...</div>';
@@ -1018,8 +1031,8 @@
     function buildSettings(root) {
         function row(l, el) {
             const r = $('div', null,
-                'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;');
-            r.append($('span', l, 'color:#ccc;font-size:13px;min-width:70px;'), el);
+                'display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;');
+            r.append($('span', l, 'color:#9a9aa2;font-size:12px;min-width:70px;'), el);
             return r;
         }
 
@@ -1029,7 +1042,7 @@
             s.style.cssText = 'flex:1;margin:0 10px;accent-color:#4f8cff;height:6px;';
             s.onfocus = () => { s.style.filter = 'drop-shadow(0 0 3px rgba(79,140,255,.7))'; };
             s.onblur = () => { s.style.filter = ''; };
-            const v = $('span', fmt(val), 'color:#fff;font-size:13px;min-width:52px;text-align:right;');
+            const v = $('span', fmt(val), 'color:#f2f2f4;font-size:12px;min-width:52px;text-align:right;font-variant-numeric:tabular-nums;');
             s.oninput = () => { v.textContent = fmt(+s.value); cb(+s.value); };
             const w = $('div', null, 'display:flex;align-items:center;flex:1;');
             w.append(s, v);
@@ -1038,13 +1051,13 @@
 
         function tgl(get, flip) {
             const t = $('div', null,
-                'width:42px;height:24px;border-radius:12px;cursor:pointer;transition:background .3s;position:relative;flex-shrink:0;');
+                'width:38px;height:22px;border-radius:11px;cursor:pointer;transition:background .18s;position:relative;flex-shrink:0;');
             const d = $('div', null,
-                'width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:3px;transition:left .3s;');
+                'width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;transition:left .18s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px rgba(0,0,0,.3);');
             t.appendChild(d);
             const u = () => {
-                t.style.background = get() ? '#4f8cff' : '#444';
-                d.style.left = get() ? '21px' : '3px';
+                t.style.background = get() ? '#5a8dff' : '#3a3a3f';
+                d.style.left = get() ? '19px' : '3px';
             };
             t.onclick = () => { flip(); u(); };
             u();
@@ -1052,17 +1065,17 @@
         }
 
         const clr = $('button', '清除当前弹幕',
-            'width:100%;background:#333;border:none;color:#ccc;border-radius:8px;padding:10px;cursor:pointer;font-size:13px;margin-top:8px;');
-        clr.onmouseenter = () => clr.style.background = '#444';
-        clr.onmouseleave = () => clr.style.background = '#333';
+            'width:100%;background:#2b2b2f;border:none;color:#9a9aa2;border-radius:8px;padding:10px;cursor:pointer;font-size:12px;margin-top:12px;transition:background .18s,color .18s;');
+        clr.onmouseenter = () => { clr.style.background = '#333338'; clr.style.color = '#f2f2f4'; };
+        clr.onmouseleave = () => { clr.style.background = '#2b2b2f'; clr.style.color = '#9a9aa2'; };
         clr.onclick = () => { clearDm(); flash('弹幕已清除'); };
 
         // 可折叠分组
         function group(title, open, ...children) {
             const head = $('div', null,
                 'display:flex;align-items:center;justify-content:space-between;cursor:pointer;' +
-                'color:#666;font-size:11px;text-transform:uppercase;letter-spacing:1px;' +
-                'margin:6px 0 10px;user-select:none;');
+                'color:#5c5c64;font-size:11px;letter-spacing:1px;' +
+                'margin:2px 0 12px;user-select:none;');
             const label = $('span', title);
             const arrow = $('span', open ? '−' : '+', 'font-size:14px;line-height:1;');
             head.append(label, arrow);
