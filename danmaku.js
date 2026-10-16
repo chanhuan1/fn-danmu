@@ -800,14 +800,31 @@
             'transform-origin:top right;transition:opacity .25s cubic-bezier(.4,0,.2,1),transform .25s cubic-bezier(.4,0,.2,1);');
         pn._dmPE = 'auto';
 
+        // 点击面板外部关闭（透明遮罩）
+        const overlay = $('div', null,
+            'position:absolute;inset:0;z-index:999998;display:none;');
+        overlay._dmPE = 'auto';
+
+        function closePanel() {
+            pn.style.display = 'none';
+            overlay.style.display = 'none';
+            btn.style.borderColor = 'rgba(255,255,255,.1)';
+            btn.style.background = 'rgba(20,20,20,.85)';
+            showGuide = false;
+            ensureLoop();
+        }
+
         const tabBar = $('div', null,
-            'display:flex;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;');
+            'display:flex;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;position:relative;');
         const tabS = $('div', '弹幕搜索',
             'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;' +
-            'color:#fff;border-bottom:2px solid #4f8cff;transition:color .2s,border-color .2s;');
-        const tabG = $('div', '&#9881; 设置',
-            'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;color:#888;transition:color .2s,border-color .2s;');
-        tabBar.append(tabS, tabG);
+            'color:#fff;transition:color .2s;');
+        const tabG = $('div', '设置',
+            'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;color:#888;transition:color .2s;');
+        const tabInd = $('div', null,
+            'position:absolute;bottom:0;left:0;width:50%;height:2px;background:#4f8cff;' +
+            'transition:transform .25s cubic-bezier(.4,0,.2,1);');
+        tabBar.append(tabS, tabG, tabInd);
 
         const vS = $('div', null, 'flex:1;overflow:hidden;display:flex;flex-direction:column;');
         const vG = $('div', null, 'flex:1;overflow-y:auto;display:none;padding:16px;box-sizing:border-box;');
@@ -818,9 +835,8 @@
         function sw(t) {
             const isS = t === 's';
             tabS.style.color = isS ? '#fff' : '#888';
-            tabS.style.borderBottom = isS ? '2px solid #4f8cff' : 'none';
             tabG.style.color = isS ? '#888' : '#fff';
-            tabG.style.borderBottom = isS ? 'none' : '2px solid #4f8cff';
+            tabInd.style.transform = isS ? 'translateX(0)' : 'translateX(100%)';
             vS.style.display = isS ? 'flex' : 'none';
             vG.style.display = isS ? 'none' : 'block';
             showGuide = !isS;
@@ -834,6 +850,9 @@
         btn.onclick = () => {
             const vis = pn.style.display === 'none';
             pn.style.display = vis ? 'flex' : 'none';
+            overlay.style.display = vis ? 'block' : 'none';
+            btn.style.borderColor = vis ? 'rgba(79,140,255,.5)' : 'rgba(255,255,255,.1)';
+            btn.style.background = vis ? 'rgba(30,30,30,.95)' : 'rgba(20,20,20,.85)';
             if (vis) {
                 pn.style.opacity = '0';
                 pn.style.transform = 'scale(.95) translateY(-4px)';
@@ -846,8 +865,11 @@
             ensureLoop();
         };
 
-        c.append(btn, pn);
-        uiEls.push(btn, pn);
+        overlay.onclick = closePanel;
+        pn._close = closePanel;
+
+        c.append(btn, overlay, pn);
+        uiEls.push(btn, overlay, pn);
     }
 
 
@@ -884,13 +906,24 @@
 
         async function doSearch(kw) {
             if (!kw) return;
+            if (go._busy) return;
+            go._busy = true;
+            go.textContent = '搜索中';
+            go.style.opacity = '.6';
+            go.style.pointerEvents = 'none';
             list.innerHTML = '<div style="color:#999;padding:20px;text-align:center;">搜索中...</div>';
             try {
                 const r = await api.search(kw);
                 const animes = r.animes || [];
                 list.innerHTML = '';
                 if (!animes.length) {
-                    list.innerHTML = '<div style="color:#999;padding:20px;text-align:center;">无结果</div>';
+                    const empty = $('div', null, 'color:#999;padding:20px;text-align:center;');
+                    empty.innerHTML = '无结果 ';
+                    const retry = $('span', '重新搜索',
+                        'color:#4f8cff;cursor:pointer;text-decoration:underline;');
+                    retry.onclick = () => doSearch(kw);
+                    empty.appendChild(retry);
+                    list.appendChild(empty);
                     return;
                 }
                 for (const a of animes) {
@@ -901,11 +934,18 @@
                     it.innerHTML = `<div style="color:#fff;font-size:15px;font-weight:600;">${a.animeTitle || a.title || a.name}</div>`;
 
                     it.onclick = async () => {
+                        // 返回按钮
+                        const backRow = $('div', '← 返回搜索结果',
+                            'color:#4f8cff;font-size:13px;cursor:pointer;padding:6px 4px;width:fit-content;');
+                        backRow.onclick = () => doSearch(kw);
+                        backRow.onmouseenter = () => backRow.style.textDecoration = 'underline';
+                        backRow.onmouseleave = () => backRow.style.textDecoration = 'none';
                         list.innerHTML = '<div style="color:#999;padding:20px;text-align:center;">加载剧集...</div>';
                         const bg = await api.bangumi(a.animeId || a.id);
                         const eps = (bg.bangumi?.episodes || bg.episodes || bg.data?.episodes || [])
                             .sort((x, y) => (parseInt(x.episodeNumber) || 0) - (parseInt(y.episodeNumber) || 0));
                         list.innerHTML = '';
+                        list.appendChild(backRow);
                         if (!eps.length) {
                             list.innerHTML = '<div style="color:#999;padding:20px;text-align:center;">暂无剧集</div>';
                             return;
@@ -944,7 +984,18 @@
                 }
             } catch (e) {
                 console.error('[搜索失败]', e.message);
-                list.innerHTML = '<div style="color:#ff6666;padding:20px;text-align:center;">搜索失败</div>';
+                const fail = $('div', null, 'color:#ff6666;padding:20px;text-align:center;');
+                fail.innerHTML = '搜索失败 ';
+                const retry = $('span', '重试',
+                    'color:#4f8cff;cursor:pointer;text-decoration:underline;');
+                retry.onclick = () => doSearch(kw);
+                fail.appendChild(retry);
+                list.appendChild(fail);
+            } finally {
+                go._busy = false;
+                go.textContent = '搜索';
+                go.style.opacity = '1';
+                go.style.pointerEvents = 'auto';
             }
         }
 
@@ -976,6 +1027,8 @@
             const s = document.createElement('input');
             s.type = 'range'; s.min = min; s.max = max; s.step = step; s.value = val;
             s.style.cssText = 'flex:1;margin:0 10px;accent-color:#4f8cff;height:6px;';
+            s.onfocus = () => { s.style.filter = 'drop-shadow(0 0 3px rgba(79,140,255,.7))'; };
+            s.onblur = () => { s.style.filter = ''; };
             const v = $('span', fmt(val), 'color:#fff;font-size:13px;min-width:52px;text-align:right;');
             s.oninput = () => { v.textContent = fmt(+s.value); cb(+s.value); };
             const w = $('div', null, 'display:flex;align-items:center;flex:1;');
@@ -1004,23 +1057,49 @@
         clr.onmouseleave = () => clr.style.background = '#333';
         clr.onclick = () => { clearDm(); flash('弹幕已清除'); };
 
+        // 可折叠分组
+        function group(title, open, ...children) {
+            const head = $('div', null,
+                'display:flex;align-items:center;justify-content:space-between;cursor:pointer;' +
+                'color:#666;font-size:11px;text-transform:uppercase;letter-spacing:1px;' +
+                'margin:6px 0 10px;user-select:none;');
+            const label = $('span', title);
+            const arrow = $('span', open ? '−' : '+', 'font-size:14px;line-height:1;');
+            head.append(label, arrow);
+            const body = $('div', null, open ? '' : 'display:none;');
+            children.forEach(c => body.appendChild(c));
+            head.onclick = () => {
+                const isOpen = body.style.display !== 'none';
+                body.style.display = isOpen ? 'none' : '';
+                arrow.textContent = isOpen ? '+' : '−';
+            };
+            head.onmouseenter = () => head.style.color = '#999';
+            head.onmouseleave = () => head.style.color = '#666';
+            const wrap = $('div', null, 'margin-top:4px;');
+            wrap.append(head, body);
+            return wrap;
+        }
+
         root.append(
-            $('div', '显示', 'color:#666;font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;'),
+            group('显示', true,
             row('弹幕开关', tgl(() => cfg.on, () => { cfg.on = !cfg.on; save(); ensureLoop(); })),
             row('热力图', tgl(() => cfg.heatmap, () => { cfg.heatmap = !cfg.heatmap; save(); ensureLoop(); })),
             row('透明度',   sld(0, 1, 0.05, cfg.opacity, v => v.toFixed(2), v => { cfg.opacity = v; save(); ensureLoop(); })),
             row('显示区域', sld(10, 80, 5, cfg.area, v => v + '%', v => { cfg.area = v; save(); ensureLoop(); })),
             row('文字描边', tgl(() => cfg.outline, () => { cfg.outline = !cfg.outline; save(); texCache.clear(); ensureLoop(); })),
-            $('div', '密度', 'color:#666;font-size:11px;margin:6px 0 10px;text-transform:uppercase;letter-spacing:1px;'),
+            ),
+            group('密度', false,
             row('字号',     sld(14, 40, 1, cfg.fontSize, v => v + 'px', v => { cfg.fontSize = v; save(); texCache.clear(); measureAll(); ensureLoop(); })),
             row('行间距',   sld(1.2, 3.0, 0.1, cfg.lineHeight, v => v.toFixed(1) + 'x', v => { cfg.lineHeight = v; save(); })),
             row('滚动速度', sld(0.5, 2.5, 0.1, cfg.speed, v => v.toFixed(1) + 'x', v => { cfg.speed = v; save(); })),
             row('弹幕密度', sld(10, 100, 5, cfg.density, v => v + '%', v => { cfg.density = v; save(); })),
             row('同屏上限', sld(10, 80, 5, cfg.maxActive, v => v + '条', v => { cfg.maxActive = v; save(); })),
-            $('div', '时间', 'color:#666;font-size:11px;margin:6px 0 10px;text-transform:uppercase;letter-spacing:1px;'),
+            ),
+            group('时间', false,
             row('偏移量', sld(-30, 30, 0.5, cfg.offset,
                 v => (v > 0 ? '+' : '') + v.toFixed(1) + 's', v => { cfg.offset = v; save(); })),
             $('div', '正数=延后  负数=提前', 'color:#555;font-size:11px;margin:-8px 0 14px;padding-left:70px;'),
+            ),
             clr
         );
     }
