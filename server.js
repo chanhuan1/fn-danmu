@@ -1,7 +1,6 @@
 const http = require('http');
 const https = require('https');
 const httpProxy = require('http-proxy');
-const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -205,10 +204,11 @@ fnIntercept.on('proxyRes', (proxyRes, req, res) => {
     if (status === 200 && ct.includes('text/html')) {
         const ce = proxyRes.headers['content-encoding'] || '';
         const chunks = [];
+        let raw = Buffer.alloc(0);
         proxyRes.on('data', chunk => chunks.push(chunk));
         proxyRes.on('end', () => {
             try {
-                let raw = Buffer.concat(chunks);
+                raw = Buffer.concat(chunks);
                 let body = decompress(raw, ce).toString('utf8');
 
                 const injectTag = buildInjectTag();

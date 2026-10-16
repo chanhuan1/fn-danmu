@@ -9,7 +9,6 @@
      * ══════════════════════════════════════════════════════════════════ */
 
     // ─── 服务端地址 ───
-    const FNIU  = '';
     const DMAPI = window.__DMAPI__ || '/dm-api';
 
     // ─── 常量配置 ───
@@ -1085,6 +1084,8 @@
             lastFrame = 0;
             tipEl = null;
             searchInp = null;
+            lastEpGuid = '';
+            _pendingInfo = null;
 
             setTimeout(inject, 100);
         }
