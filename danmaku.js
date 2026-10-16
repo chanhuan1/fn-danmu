@@ -1070,49 +1070,26 @@
         clr.onmouseleave = () => { clr.style.background = '#2b2b2f'; clr.style.color = '#9a9aa2'; };
         clr.onclick = () => { clearDm(); flash('弹幕已清除'); };
 
-        // 可折叠分组
-        function group(title, open, ...children) {
-            const head = $('div', null,
-                'display:flex;align-items:center;justify-content:space-between;cursor:pointer;' +
-                'color:#5c5c64;font-size:11px;letter-spacing:1px;' +
-                'margin:2px 0 12px;user-select:none;');
-            const label = $('span', title);
-            const arrow = $('span', open ? '−' : '+', 'font-size:14px;line-height:1;');
-            head.append(label, arrow);
-            const body = $('div', null, open ? '' : 'display:none;');
-            children.forEach(c => body.appendChild(c));
-            head.onclick = () => {
-                const isOpen = body.style.display !== 'none';
-                body.style.display = isOpen ? 'none' : '';
-                arrow.textContent = isOpen ? '+' : '−';
-            };
-            head.onmouseenter = () => head.style.color = '#999';
-            head.onmouseleave = () => head.style.color = '#666';
-            const wrap = $('div', null, 'margin-top:4px;');
-            wrap.append(head, body);
-            return wrap;
-        }
+        const sec = title => $('div', title,
+            'color:#5c5c64;font-size:11px;letter-spacing:1px;margin:8px 0 12px;user-select:none;');
 
         root.append(
-            group('显示', true,
+            sec('显示'),
             row('弹幕开关', tgl(() => cfg.on, () => { cfg.on = !cfg.on; save(); ensureLoop(); })),
             row('热力图', tgl(() => cfg.heatmap, () => { cfg.heatmap = !cfg.heatmap; save(); ensureLoop(); })),
             row('透明度',   sld(0, 1, 0.05, cfg.opacity, v => v.toFixed(2), v => { cfg.opacity = v; save(); ensureLoop(); })),
             row('显示区域', sld(10, 80, 5, cfg.area, v => v + '%', v => { cfg.area = v; save(); ensureLoop(); })),
             row('文字描边', tgl(() => cfg.outline, () => { cfg.outline = !cfg.outline; save(); texCache.clear(); ensureLoop(); })),
-            ),
-            group('密度', false,
+            sec('密度'),
             row('字号',     sld(14, 40, 1, cfg.fontSize, v => v + 'px', v => { cfg.fontSize = v; save(); texCache.clear(); measureAll(); ensureLoop(); })),
             row('行间距',   sld(1.2, 3.0, 0.1, cfg.lineHeight, v => v.toFixed(1) + 'x', v => { cfg.lineHeight = v; save(); })),
             row('滚动速度', sld(0.5, 2.5, 0.1, cfg.speed, v => v.toFixed(1) + 'x', v => { cfg.speed = v; save(); })),
             row('弹幕密度', sld(10, 100, 5, cfg.density, v => v + '%', v => { cfg.density = v; save(); })),
             row('同屏上限', sld(10, 80, 5, cfg.maxActive, v => v + '条', v => { cfg.maxActive = v; save(); })),
-            ),
-            group('时间', false,
+            sec('时间'),
             row('偏移量', sld(-30, 30, 0.5, cfg.offset,
                 v => (v > 0 ? '+' : '') + v.toFixed(1) + 's', v => { cfg.offset = v; save(); })),
             $('div', '正数=延后  负数=提前', 'color:#555;font-size:11px;margin:-8px 0 14px;padding-left:70px;'),
-            ),
             clr
         );
     }
