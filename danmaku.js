@@ -21,7 +21,7 @@
     const DEF = {
         on: true, opacity: 0.85, area: 35, fontSize: 22,
         lineHeight: 1.8, speed: 1, outline: true, density: 100,
-        maxActive: 40, offset: 0, heatmap: true, source: ''
+        maxActive: 40, offset: 0, heatmap: true, source: '', hiddenSources: []
     };
 
     let cfg = { ...DEF };
@@ -89,9 +89,9 @@
 
     const api = {
         search: kw => gmFetch(`${DMAPI}/api/v2/search/anime?keyword=${encodeURIComponent(kw)}`),
-        match: (fn, platform) => gmFetch(`${DMAPI}/api/v2/match`, {
+        match: fn => gmFetch(`${DMAPI}/api/v2/match`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            data: JSON.stringify({ fileName: platform ? `${fn}@${platform}` : fn })
+            data: JSON.stringify({ fileName: fn })
         }),
         bangumi: id => gmFetch(`${DMAPI}/api/v2/bangumi/${id}`),
         async comment(cid) {
@@ -166,6 +166,7 @@
 
     function parse(raw) {
         if (!Array.isArray(raw)) return [];
+        const hidden = new Set(cfg.hiddenSources || []);
         return raw.map(it => {
             try {
                 if (!it) return null;
@@ -176,12 +177,18 @@
                 const ci = parseInt(p[2] || '16777215');
                 const text = String(it.m || '').trim();
                 if (!text) return null;
+                const srcLabel = it._sourceLabel || '';
+                if (srcLabel) {
+                    // 合并源标签形如 "bilibili＆dandan"，任一副源被屏蔽则整条隐藏
+                    const parts = srcLabel.split(/[&＆]/).map(s => s.trim()).filter(Boolean);
+                    if (parts.some(s => hidden.has(s))) return null;
+                }
                 return {
                     text,
                     color: '#' + ci.toString(16).padStart(6, '0'),
                     type: mode === 4 ? 1 : mode === 5 ? 2 : 0,
                     time,
-                    src: it._sourceLabel || '',
+                    src: srcLabel,
                     w: 0
                 };
             } catch { return null; }
@@ -961,19 +968,27 @@
             return t;
         }
 
-        function segBtns(opts, get, set) {
+        function srcBtns(opts) {
             const wrap = $('div', null, 'display:flex;flex-wrap:wrap;gap:6px;flex:1;justify-content:flex-end;');
             const render = () => {
                 wrap.innerHTML = '';
                 for (const o of opts) {
+                    const hidden = (cfg.hiddenSources || []).includes(o.value);
                     const b = $('button', o.label,
-                        'background:' + (get() === o.value ? '#4f8cff' : '#333') +
-                        ';border:none;color:' + (get() === o.value ? '#fff' : '#aaa') +
+                        'background:' + (hidden ? '#552222' : '#333') +
+                        ';border:none;color:' + (hidden ? '#ff8888' : '#aaa') +
                         ';border-radius:14px;padding:5px 12px;cursor:pointer;font-size:12px;' +
                         'transition:background .2s,color .2s;');
-                    b.onmouseenter = () => { if (get() !== o.value) b.style.background = '#444'; };
-                    b.onmouseleave = () => { if (get() !== o.value) b.style.background = '#333'; };
-                    b.onclick = () => { set(o.value); save(); render(); };
+                    b.onmouseenter = () => { if (!hidden) b.style.background = '#444'; };
+                    b.onmouseleave = () => { if (!hidden) b.style.background = '#333'; };
+                    b.title = hidden ? '点击恢复显示' : '点击屏蔽该平台';
+                    b.onclick = () => {
+                        const list = cfg.hiddenSources || [];
+                        cfg.hiddenSources = hidden ? list.filter(v => v !== o.value) : [...list, o.value];
+                        save();
+                        if (rawDmBuf) { allDm = parse(rawDmBuf); measureAll(); onSeek(); refreshCnt(); }
+                        render();
+                    };
                     wrap.appendChild(b);
                 }
             };
@@ -990,14 +1005,19 @@
         root.append(
             $('div', '显示', 'color:#666;font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;'),
             row('弹幕开关', tgl(() => cfg.on, () => { cfg.on = !cfg.on; save(); ensureLoop(); })),
-            row('弹幕源',   segBtns([
-                { value: '',           label: '自动' },
-                { value: 'bilibili1',  label: 'B站' },
-                { value: 'qiyi',       label: '爱奇艺' },
-                { value: 'qq',         label: '腾讯' },
-                { value: 'youku',      label: '优酷' },
-                { value: 'imgo',       label: '芒果' }
-            ], () => cfg.source || '', v => { cfg.source = v; })),
+            row('屏蔽平台', srcBtns([
+                { value: 'bilibili', label: 'B站' },
+                { value: 'iqiyi',    label: '爱奇艺' },
+                { value: 'tencent',  label: '腾讯' },
+                { value: 'youku',    label: '优酷' },
+                { value: 'imgo',     label: '芒果' },
+                { value: 'migu',     label: '咪咕' },
+                { value: 'sohu',     label: '搜狐' },
+                { value: 'leshi',    label: '乐视' },
+                { value: 'xigua',    label: '西瓜' },
+                { value: 'hanjutv',  label: '韩剧' },
+                { value: 'bahamut',  label: '巴哈' }
+            ])),
             row('热力图', tgl(() => cfg.heatmap, () => { cfg.heatmap = !cfg.heatmap; save(); ensureLoop(); })),
             row('透明度',   sld(0, 1, 0.05, cfg.opacity, v => v.toFixed(2), v => { cfg.opacity = v; save(); ensureLoop(); })),
             row('显示区域', sld(10, 80, 5, cfg.area, v => v + '%', v => { cfg.area = v; save(); ensureLoop(); })),
@@ -1029,7 +1049,7 @@
         console.log('[自动匹配] 开始', fn);
         flash('正在自动匹配…', false, fn);
         try {
-            const m = await api.match(fn, cfg.source || '');
+            const m = await api.match(fn);
             console.log('[自动匹配] API返回', JSON.stringify(m).substring(0, 500));
             if (!m.success || !m.isMatched) {
                 console.warn('[自动匹配] 未匹配', 'success:', m.success, 'isMatched:', m.isMatched);
