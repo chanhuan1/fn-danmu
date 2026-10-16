@@ -21,7 +21,7 @@
     const DEF = {
         on: true, opacity: 0.85, area: 35, fontSize: 22,
         lineHeight: 1.8, speed: 1, outline: true, density: 100,
-        maxActive: 40, offset: 0, heatmap: true
+        maxActive: 40, offset: 0, heatmap: true, source: ''
     };
 
     let cfg = { ...DEF };
@@ -89,9 +89,9 @@
 
     const api = {
         search: kw => gmFetch(`${DMAPI}/api/v2/search/anime?keyword=${encodeURIComponent(kw)}`),
-        match: fn => gmFetch(`${DMAPI}/api/v2/match`, {
+        match: (fn, platform) => gmFetch(`${DMAPI}/api/v2/match`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            data: JSON.stringify({ fileName: fn })
+            data: JSON.stringify({ fileName: platform ? `${fn}@${platform}` : fn })
         }),
         bangumi: id => gmFetch(`${DMAPI}/api/v2/bangumi/${id}`),
         async comment(cid) {
@@ -745,30 +745,31 @@
         const btn = $('div', '弹幕',
             'position:absolute;top:14px;right:70px;z-index:999999;background:rgba(20,20,20,.85);' +
             'backdrop-filter:blur(10px);color:#fff;border-radius:10px;padding:8px 16px;cursor:pointer;' +
-            'font-size:14px;transition:opacity .3s,transform .2s;border:1px solid rgba(255,255,255,.08);' +
+            'font-size:14px;transition:opacity .3s,transform .2s,background .2s,border-color .2s;border:1px solid rgba(255,255,255,.1);' +
             'box-shadow:0 2px 12px rgba(0,0,0,.4);pointer-events:auto;');
         btn._dmPE = 'auto';
 
         cntEl = $('span', '', 'font-size:12px;color:#aaa;margin-left:4px;');
         btn.appendChild(cntEl);
-        btn.onmouseenter = () => btn.style.transform = 'scale(1.05)';
+        btn.onmouseenter = () => { btn.style.transform = 'scale(1.05)'; btn.style.background = 'rgba(40,40,40,.9)'; btn.style.borderColor = 'rgba(79,140,255,.4)'; };
         btn.onmouseleave = () => btn.style.transform = 'scale(1)';
 
         const pn = $('div', null,
             'position:absolute;top:58px;right:70px;width:400px;max-width:calc(100% - 20px);' +
-            'height:560px;max-height:calc(100% - 70px);z-index:999999;background:rgba(18,18,18,.95);' +
-            'backdrop-filter:blur(20px);border-radius:16px;overflow:hidden;' +
-            'border:1px solid rgba(255,255,255,.08);box-shadow:0 10px 40px rgba(0,0,0,.6);' +
-            'pointer-events:none;display:none;flex-direction:column;transition:opacity .3s;');
+            'height:560px;max-height:calc(100% - 70px);z-index:999999;background:rgba(18,18,18,.96);' +
+            'backdrop-filter:blur(24px);border-radius:14px;overflow:hidden;' +
+            'border:1px solid rgba(255,255,255,.1);box-shadow:0 16px 48px rgba(0,0,0,.7),0 0 0 1px rgba(79,140,255,.06);' +
+            'pointer-events:none;display:none;flex-direction:column;' +
+            'transform-origin:top right;transition:opacity .25s cubic-bezier(.4,0,.2,1),transform .25s cubic-bezier(.4,0,.2,1);');
         pn._dmPE = 'auto';
 
         const tabBar = $('div', null,
             'display:flex;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;');
         const tabS = $('div', '弹幕搜索',
             'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;' +
-            'color:#fff;border-bottom:2px solid #4f8cff;');
+            'color:#fff;border-bottom:2px solid #4f8cff;transition:color .2s,border-color .2s;');
         const tabG = $('div', '&#9881; 设置',
-            'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;color:#888;');
+            'flex:1;text-align:center;padding:14px;cursor:pointer;font-size:15px;font-weight:bold;color:#888;transition:color .2s,border-color .2s;');
         tabBar.append(tabS, tabG);
 
         const vS = $('div', null, 'flex:1;overflow:hidden;display:flex;flex-direction:column;');
@@ -796,6 +797,14 @@
         btn.onclick = () => {
             const vis = pn.style.display === 'none';
             pn.style.display = vis ? 'flex' : 'none';
+            if (vis) {
+                pn.style.opacity = '0';
+                pn.style.transform = 'scale(.95) translateY(-4px)';
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    pn.style.opacity = '1';
+                    pn.style.transform = 'scale(1) translateY(0)';
+                }));
+            }
             showGuide = vis && tabG.style.color === 'rgb(255, 255, 255)';
             ensureLoop();
         };
@@ -815,11 +824,17 @@
         const inp = document.createElement('input');
         inp.placeholder = '输入动漫名称';
         inp.style.cssText =
-            'flex:1;background:#2b2b2b;border:none;outline:none;color:#fff;border-radius:10px;' +
-            'padding:12px;font-size:14px;';
+            'flex:1;background:#252525;border:1px solid rgba(255,255,255,.08);outline:none;color:#fff;border-radius:10px;' +
+            'padding:11px 14px;font-size:14px;transition:border-color .2s,box-shadow .2s;box-sizing:border-box;';
+        inp.onfocus = () => { inp.style.borderColor = 'rgba(79,140,255,.5)'; inp.style.boxShadow = '0 0 0 3px rgba(79,140,255,.12)'; };
+        inp.onblur = () => { inp.style.borderColor = 'rgba(255,255,255,.08)'; inp.style.boxShadow = 'none'; };
 
         const go = $('button', '搜索',
-            'background:#4f8cff;border:none;color:#fff;border-radius:10px;padding:0 18px;cursor:pointer;font-size:14px;');
+            'background:#4f8cff;border:none;color:#fff;border-radius:10px;padding:0 18px;cursor:pointer;font-size:14px;transition:background .2s,transform .15s;');
+        go.onmouseenter = () => go.style.background = '#5c97ff';
+        go.onmouseleave = () => go.style.background = '#4f8cff';
+        go.onmousedown = () => go.style.transform = 'scale(.96)';
+        go.onmouseup = () => go.style.transform = 'scale(1)';
         wrap.append(inp, go);
 
         const tip = $('div', null, 'padding:0 14px 8px;color:#999;font-size:13px;flex-shrink:0;');
@@ -843,10 +858,10 @@
                 }
                 for (const a of animes) {
                     const it = $('div', null,
-                        'background:#252525;border-radius:12px;margin-bottom:10px;padding:14px;cursor:pointer;transition:background .2s;');
-                    it.onmouseenter = () => it.style.background = '#303030';
-                    it.onmouseleave = () => it.style.background = '#252525';
-                    it.innerHTML = `<div style="color:#fff;font-size:15px;font-weight:bold;">${a.animeTitle || a.title || a.name}</div>`;
+                        'background:#252525;border:1px solid transparent;border-radius:12px;margin-bottom:8px;padding:13px 14px;cursor:pointer;transition:background .2s,border-color .2s;');
+                    it.onmouseenter = () => { it.style.background = '#2d2d2d'; it.style.borderColor = 'rgba(79,140,255,.35)'; };
+                    it.onmouseleave = () => { it.style.background = '#252525'; it.style.borderColor = 'transparent'; };
+                    it.innerHTML = `<div style="color:#fff;font-size:15px;font-weight:600;">${a.animeTitle || a.title || a.name}</div>`;
 
                     it.onclick = async () => {
                         list.innerHTML = '<div style="color:#999;padding:20px;text-align:center;">加载剧集...</div>';
@@ -861,7 +876,9 @@
                         for (const ep of eps) {
                             const lb = `S${ep.seasonId?.split('-').pop() || '?'} E${ep.episodeNumber || '?'}`;
                             const ed = $('div', `<div style="color:#fff;font-size:14px;">${lb}</div>`,
-                                'background:#252525;border-radius:10px;margin-bottom:8px;padding:12px;cursor:pointer;');
+                                'background:#252525;border:1px solid transparent;border-radius:10px;margin-bottom:6px;padding:11px 14px;cursor:pointer;transition:background .2s,border-color .2s;');
+                            ed.onmouseenter = () => { ed.style.background = '#2d2d2d'; ed.style.borderColor = 'rgba(79,140,255,.35)'; };
+                            ed.onmouseleave = () => { ed.style.background = '#252525'; ed.style.borderColor = 'transparent'; };
 
                             ed.onclick = async () => {
                                 ed.innerHTML = '<div style="color:#4f8cff">加载中...</div>';
@@ -944,6 +961,26 @@
             return t;
         }
 
+        function segBtns(opts, get, set) {
+            const wrap = $('div', null, 'display:flex;flex-wrap:wrap;gap:6px;flex:1;justify-content:flex-end;');
+            const render = () => {
+                wrap.innerHTML = '';
+                for (const o of opts) {
+                    const b = $('button', o.label,
+                        'background:' + (get() === o.value ? '#4f8cff' : '#333') +
+                        ';border:none;color:' + (get() === o.value ? '#fff' : '#aaa') +
+                        ';border-radius:14px;padding:5px 12px;cursor:pointer;font-size:12px;' +
+                        'transition:background .2s,color .2s;');
+                    b.onmouseenter = () => { if (get() !== o.value) b.style.background = '#444'; };
+                    b.onmouseleave = () => { if (get() !== o.value) b.style.background = '#333'; };
+                    b.onclick = () => { set(o.value); save(); render(); };
+                    wrap.appendChild(b);
+                }
+            };
+            render();
+            return wrap;
+        }
+
         const clr = $('button', '清除当前弹幕',
             'width:100%;background:#333;border:none;color:#ccc;border-radius:8px;padding:10px;cursor:pointer;font-size:13px;margin-top:8px;');
         clr.onmouseenter = () => clr.style.background = '#444';
@@ -953,6 +990,14 @@
         root.append(
             $('div', '显示', 'color:#666;font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;'),
             row('弹幕开关', tgl(() => cfg.on, () => { cfg.on = !cfg.on; save(); ensureLoop(); })),
+            row('弹幕源',   segBtns([
+                { value: '',           label: '自动' },
+                { value: 'bilibili1',  label: 'B站' },
+                { value: 'qiyi',       label: '爱奇艺' },
+                { value: 'qq',         label: '腾讯' },
+                { value: 'youku',      label: '优酷' },
+                { value: 'imgo',       label: '芒果' }
+            ], () => cfg.source || '', v => { cfg.source = v; })),
             row('热力图', tgl(() => cfg.heatmap, () => { cfg.heatmap = !cfg.heatmap; save(); ensureLoop(); })),
             row('透明度',   sld(0, 1, 0.05, cfg.opacity, v => v.toFixed(2), v => { cfg.opacity = v; save(); ensureLoop(); })),
             row('显示区域', sld(10, 80, 5, cfg.area, v => v + '%', v => { cfg.area = v; save(); ensureLoop(); })),
@@ -984,7 +1029,7 @@
         console.log('[自动匹配] 开始', fn);
         flash('正在自动匹配…', false, fn);
         try {
-            const m = await api.match(fn);
+            const m = await api.match(fn, cfg.source || '');
             console.log('[自动匹配] API返回', JSON.stringify(m).substring(0, 500));
             if (!m.success || !m.isMatched) {
                 console.warn('[自动匹配] 未匹配', 'success:', m.success, 'isMatched:', m.isMatched);
