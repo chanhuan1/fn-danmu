@@ -21,7 +21,7 @@
     const DEF = {
         on: true, opacity: 0.85, area: 35, fontSize: 22,
         lineHeight: 1.8, speed: 1, outline: true, density: 100,
-        maxActive: 40, offset: 0, heatmap: true, source: ''
+        maxActive: 40, offset: 0, heatmap: true
     };
 
     let cfg = { ...DEF };
@@ -89,9 +89,9 @@
 
     const api = {
         search: kw => gmFetch(`${DMAPI}/api/v2/search/anime?keyword=${encodeURIComponent(kw)}`),
-        match: (fn, platform) => gmFetch(`${DMAPI}/api/v2/match`, {
+        match: fn => gmFetch(`${DMAPI}/api/v2/match`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            data: JSON.stringify({ fileName: platform ? `${fn}@${platform}` : fn })
+            data: JSON.stringify({ fileName: fn })
         }),
         bangumi: id => gmFetch(`${DMAPI}/api/v2/bangumi/${id}`),
         async comment(cid) {
@@ -961,26 +961,6 @@
             return t;
         }
 
-        function segBtns(opts, get, set) {
-            const wrap = $('div', null, 'display:flex;flex-wrap:wrap;gap:6px;flex:1;justify-content:flex-end;');
-            const render = () => {
-                wrap.innerHTML = '';
-                for (const o of opts) {
-                    const b = $('button', o.label,
-                        'background:' + (get() === o.value ? '#4f8cff' : '#333') +
-                        ';border:none;color:' + (get() === o.value ? '#fff' : '#aaa') +
-                        ';border-radius:14px;padding:5px 12px;cursor:pointer;font-size:12px;' +
-                        'transition:background .2s,color .2s;');
-                    b.onmouseenter = () => { if (get() !== o.value) b.style.background = '#444'; };
-                    b.onmouseleave = () => { if (get() !== o.value) b.style.background = '#333'; };
-                    b.onclick = () => { set(o.value); save(); render(); };
-                    wrap.appendChild(b);
-                }
-            };
-            render();
-            return wrap;
-        }
-
         const clr = $('button', '清除当前弹幕',
             'width:100%;background:#333;border:none;color:#ccc;border-radius:8px;padding:10px;cursor:pointer;font-size:13px;margin-top:8px;');
         clr.onmouseenter = () => clr.style.background = '#444';
@@ -990,14 +970,6 @@
         root.append(
             $('div', '显示', 'color:#666;font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;'),
             row('弹幕开关', tgl(() => cfg.on, () => { cfg.on = !cfg.on; save(); ensureLoop(); })),
-            row('弹幕源',   segBtns([
-                { value: '',           label: '自动' },
-                { value: 'bilibili1',  label: 'B站' },
-                { value: 'qiyi',       label: '爱奇艺' },
-                { value: 'qq',         label: '腾讯' },
-                { value: 'youku',      label: '优酷' },
-                { value: 'imgo',       label: '芒果' }
-            ], () => cfg.source || '', v => { cfg.source = v; })),
             row('热力图', tgl(() => cfg.heatmap, () => { cfg.heatmap = !cfg.heatmap; save(); ensureLoop(); })),
             row('透明度',   sld(0, 1, 0.05, cfg.opacity, v => v.toFixed(2), v => { cfg.opacity = v; save(); ensureLoop(); })),
             row('显示区域', sld(10, 80, 5, cfg.area, v => v + '%', v => { cfg.area = v; save(); ensureLoop(); })),
@@ -1029,7 +1001,7 @@
         console.log('[自动匹配] 开始', fn);
         flash('正在自动匹配…', false, fn);
         try {
-            const m = await api.match(fn, cfg.source || '');
+            const m = await api.match(fn);
             console.log('[自动匹配] API返回', JSON.stringify(m).substring(0, 500));
             if (!m.success || !m.isMatched) {
                 console.warn('[自动匹配] 未匹配', 'success:', m.success, 'isMatched:', m.isMatched);
