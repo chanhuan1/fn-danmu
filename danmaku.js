@@ -140,7 +140,9 @@
     /** 轮询代理层 /dm-api/video-info 直到获取到视频信息 */
     function fetchVideoInfo(retry) {
         retry = retry || 0;
-        fetch(`${DMAPI}/video-info`)
+        const curGuid = getGuid();
+        const qs = curGuid ? `?guid=${encodeURIComponent(curGuid)}` : '';
+        fetch(`${DMAPI}/video-info${qs}`)
             .then(r => r.json())
             .then(data => {
                 if (data && data.title) {

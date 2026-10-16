@@ -153,7 +153,12 @@ fnPlayInfo.on('proxyRes', (proxyRes, req, res) => {
 function handleRequest(req, res) {
     if (req.url.startsWith('/dm-api/video-info')) {
         const guid = new URL(req.url, 'http://localhost').searchParams.get('guid') || '';
-        const info = guid ? videoInfoCache.get(guid) : null;
+        let info = guid ? videoInfoCache.get(guid) : null;
+        if (!info && videoInfoCache.size() > 0) {
+            // 兼容旧脚本未带 guid 的请求：返回最近缓存的一条
+            const entries = [...videoInfoCache.entries()].sort((a, b) => b[1].ts - a[1].ts);
+            info = entries[0][1].info;
+        }
         res.writeHead(200, {'Content-Type': 'application/json; charset=utf-8'});
         res.end(JSON.stringify(info || {}));
         return;
