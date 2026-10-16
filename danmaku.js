@@ -724,6 +724,38 @@
         sBar._t = setTimeout(() => sBar.style.opacity = '0', 8000);
     }
 
+    // 加载阶段提示：steps = ['搜索', '匹配', '加载']，activeIdx 从 0 开始
+    function flashSteps(steps, activeIdx, sub, opts = {}) {
+        if (!sBar) return;
+        const done = steps.slice(0, activeIdx).map(s => `✓ ${s}`);
+        const cur = activeIdx < steps.length ? `● ${steps[activeIdx]}` : '';
+        const pend = steps.slice(activeIdx + 1).map(s => s);
+        sTxt.innerHTML = [cur, ...pend]
+            .map((s, i) => {
+                const isCur = i === 0 && cur;
+                return `<span style="color:${isCur ? '#4f8cff' : '#555'};margin-right:14px;">${s}</span>`;
+            }).join('');
+        for (let i = done.length - 1; i >= 0; i--) {
+            sTxt.insertAdjacentHTML('afterbegin', `<span style="color:#4caf50;margin-right:14px;">${done[i]}</span>`);
+        }
+        sSub.textContent = sub || '';
+        sSub.style.color = opts.err ? '#ff8888' : '#aaa';
+        clearTimeout(sBar._t);
+        sBar.style.opacity = '1';
+        if (!opts.sticky) sBar._t = setTimeout(() => sBar.style.opacity = '0', opts.duration || 8000);
+    }
+
+    function flashDone(msg, err, sub) {
+        if (!sBar) return;
+        sTxt.textContent = msg;
+        sTxt.style.color = err ? '#ff6666' : '#fff';
+        sSub.textContent = sub || '';
+        sSub.style.color = '#aaa';
+        clearTimeout(sBar._t);
+        sBar.style.opacity = '1';
+        sBar._t = setTimeout(() => sBar.style.opacity = '0', 8000);
+    }
+
     function mkStatus(c) {
         sBar = $('div', null,
             'position:absolute;left:20px;bottom:60px;z-index:99999;background:rgba(0,0,0,.75);' +
@@ -882,19 +914,19 @@
                             ed.onclick = async () => {
                                 ed.innerHTML = '<div style="color:#4f8cff">加载中...</div>';
                                 const desc = `${a.animeTitle || a.title} ${lb}`;
-                                flash('正在加载弹幕…', false, desc);
+                                flashSteps(['加载弹幕'], 0, desc, { sticky: true });
                                 try {
                                     const result = await api.comment(ep.episodeId);
                                     if (result.comments.length) {
                                         clearDm();
                                         loadDm(result.comments, result.videoDuration);
-                                        flash(`加载成功，${result.comments.length} 条弹幕`, false, desc);
+                                        flashDone(`加载成功，${result.comments.length} 条弹幕`, false, desc);
                                     } else {
-                                        flash('该集暂无弹幕', true, desc);
+                                        flashDone('该集暂无弹幕', true, desc);
                                     }
                                 } catch (e) {
                                     console.error('[手动加载弹幕失败]', e.message);
-                                    flash('加载失败：' + e.message, true, desc);
+                                    flashDone('加载失败：' + e.message, true, desc);
                                 } finally {
                                     ed.innerHTML = `<div style="color:#fff;font-size:14px;">${lb}</div>`;
                                 }
@@ -994,35 +1026,37 @@
 
     async function autoMatch(info) {
         if (!info) return;
+        const STEPS = ['获取信息', '匹配剧集', '加载弹幕'];
         const fn = info.isSeries
             ? `${info.title} S${String(info.season).padStart(2, '0')}E${String(info.episode).padStart(2, '0')}`
             : info.title;
         console.log('[自动匹配] 开始', fn);
-        flash('正在自动匹配…', false, fn);
+        flashSteps(STEPS, 0, fn, { sticky: true });
         try {
             const m = await api.match(fn);
             console.log('[自动匹配] API返回', JSON.stringify(m).substring(0, 500));
             if (!m.success || !m.isMatched) {
                 console.warn('[自动匹配] 未匹配', 'success:', m.success, 'isMatched:', m.isMatched);
-                flash('自动匹配失败', true, fn);
+                flashDone('未找到匹配的剧集', true, fn);
                 return;
             }
             const f = m.matches?.[0];
-            if (!f) { flash('无匹配结果', true, fn); return; }
+            if (!f) { flashDone('未找到匹配的剧集', true, fn); return; }
             const desc = `${f.animeTitle || '?'} ${f.episodeTitle || '?'}`;
             console.log('[自动匹配] 匹配到', desc, 'episodeId:', f.episodeId);
+            flashSteps(STEPS, 2, desc, { sticky: true });
             const result = await api.comment(f.episodeId);
             console.log('[自动匹配] 弹幕数', result.comments.length);
             if (result.comments.length) {
                 clearDm();
                 loadDm(result.comments, result.videoDuration);
-                flash(`匹配成功，${result.comments.length} 条弹幕`, false, desc);
+                flashDone(`加载成功，${result.comments.length} 条弹幕`, false, desc);
             } else {
-                flash('匹配到但无弹幕', true, desc);
+                flashDone('该集暂无弹幕', true, desc);
             }
         } catch (e) {
             console.error('[自动匹配] 异常', e.message, e.stack);
-            flash('匹配异常：' + e.message, true);
+            flashDone('匹配失败：' + e.message, true);
         }
     }
 
