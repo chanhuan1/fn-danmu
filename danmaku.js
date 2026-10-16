@@ -248,7 +248,7 @@
             if (counts[i] === 0) continue;
             heatBars.push({
                 x: (i * bw) / lW, w: (bw - 1) / lW,
-                h: Math.max(2, (counts[i] / max) * 24),
+                h: Math.max(1.5, (counts[i] / max) * 10),
                 count: counts[i]
             });
         }
@@ -582,19 +582,19 @@
 
         if (cfg.heatmap && heatBars.length && vid) {
             ctx.save();
-            ctx.globalAlpha = 0.35;
+            ctx.globalAlpha = 0.18;
             ctx.fillStyle = '#4f8cff';
             const baseY = lH - 4;
             for (const bar of heatBars) {
                 ctx.fillRect(bar.x * lW, baseY - bar.h, bar.w * lW, bar.h);
             }
-            ctx.globalAlpha = 0.8;
+            ctx.globalAlpha = 0.5;
             ctx.strokeStyle = 'rgba(255,255,255,0.6)';
             ctx.lineWidth = 1;
             const dur = vid.duration > 0 ? vid.duration : 1;
             const px = (vid.currentTime / dur) * lW;
             ctx.beginPath();
-            ctx.moveTo(px, baseY - 28);
+            ctx.moveTo(px, baseY - 12);
             ctx.lineTo(px, baseY);
             ctx.stroke();
             ctx.restore();
