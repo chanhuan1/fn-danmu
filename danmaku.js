@@ -21,7 +21,7 @@
     const DEF = {
         on: true, opacity: 0.85, area: 35, fontSize: 22,
         lineHeight: 1.8, speed: 1, outline: true, density: 100,
-        maxActive: 40, offset: 0
+        maxActive: 40, offset: 0, heatmap: true
     };
 
     let cfg = { ...DEF };
@@ -53,6 +53,7 @@
     let fixedTopRow = [];
     let fixedBotRow = [];
     let _pendingInfo = null;
+    let heatBars = [];  // [{x, w, h, count}] 预计算弹幕密度桶
 
 
     /* ══════════════════════════════════════════════════════════════════
@@ -178,6 +179,7 @@
                     color: '#' + ci.toString(16).padStart(6, '0'),
                     type: mode === 4 ? 1 : mode === 5 ? 2 : 0,
                     time,
+                    src: it._sourceLabel || '',
                     w: 0
                 };
             } catch { return null; }
@@ -208,6 +210,7 @@
         fixedTopRow = []; fixedBotRow = [];
         texCache.clear();
         measureAll(); refreshCnt();
+        buildHeatmap();
         if (vid) onSeek();
         ensureLoop();
     }
@@ -223,8 +226,30 @@
         console.log('[弹幕] 清除');
         allDm = []; active = []; eIdx = 0; rowData = [];
         fixedTopRow = []; fixedBotRow = [];
-        texCache.clear(); rawDmBuf = null; dmDurBuf = 0;
+        texCache.clear(); rawDmBuf = null; dmDurBuf = 0; heatBars = [];
         refreshCnt();
+    }
+
+    function buildHeatmap() {
+        heatBars = [];
+        if (!vid || !vid.duration || !allDm.length || !lW) return;
+        const buckets = 80;
+        const counts = new Array(buckets).fill(0);
+        const dur = vid.duration;
+        for (const d of allDm) {
+            const idx = Math.min(buckets - 1, Math.floor(d.time / dur * buckets));
+            if (idx >= 0) counts[idx]++;
+        }
+        const max = Math.max(...counts, 1);
+        const bw = lW / buckets;
+        for (let i = 0; i < buckets; i++) {
+            if (counts[i] === 0) continue;
+            heatBars.push({
+                x: (i * bw) / lW, w: (bw - 1) / lW,
+                h: Math.max(2, (counts[i] / max) * 24),
+                count: counts[i]
+            });
+        }
     }
 
     function refreshCnt() {
@@ -241,7 +266,11 @@
         if (dpr !== lastDpr) { texCache.clear(); lastDpr = dpr; }
         const key = `${text}\x00${color}\x00${cfg.fontSize}\x00${cfg.outline}`;
         let e = texCache.get(key);
-        if (e) return e;
+        if (e) {
+            texCache.delete(key);
+            texCache.set(key, e);
+            return e;
+        }
 
         const fs = cfg.fontSize;
         const sw = cfg.outline ? Math.max(2, fs / 10) : 0;
@@ -299,6 +328,7 @@
             c.width = lW * dpr;
             c.height = lH * dpr;
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (rawDmBuf) buildHeatmap();
             ensureLoop();
         }
 
@@ -354,7 +384,7 @@
             playTime += dt * (vid.playbackRate || 1);
 
             const drift = vid.currentTime - playTime;
-            if (Math.abs(drift) > 1.5) {
+            if (Math.abs(drift) > 0.5) {
                 const delta = vid.currentTime - playTime;
                 playTime = vid.currentTime;
                 active.forEach(d => { d.born += delta; });
@@ -371,14 +401,13 @@
         pruneActive();
         draw();
 
-        if (playing || showGuide) { raf = requestAnimationFrame(tick); }
+        if (playing || showGuide || (cfg.heatmap && heatBars.length)) { raf = requestAnimationFrame(tick); }
         else { raf = null; }
     }
 
     function countVisible() {
         let n = 0;
         for (const d of active) {
-            if (d.paused) { n++; continue; }
             if (d.fixed) {
                 if ((playTime - d.born) < d.life) n++;
             } else {
@@ -414,7 +443,7 @@
                 text: dm.text, color: dm.color, w: dm.w,
                 startX: lW + 5, y: r * lh + fs,
                 spd, fixed: false, born: playTime,
-                time: dm.time, paused: false, highlight: false
+                time: dm.time, src: dm.src || '', highlight: false
             });
         } else {
             const bound = lH * cfg.area / 100;
@@ -434,7 +463,7 @@
                     text: dm.text, color: dm.color, w: dm.w,
                     x: (lW - dm.w) / 2, y: fs * 1.5 + r * lh,
                     fixed: true, born: playTime, life,
-                    time: dm.time, paused: false, highlight: false
+                    time: dm.time, src: dm.src || '', highlight: false
                 });
             } else {
                 let r = -1;
@@ -450,7 +479,7 @@
                     x: (lW - dm.w) / 2,
                     y: Math.max(fs * 2, bound - fs * 2 - r * lh),
                     fixed: true, born: playTime, life,
-                    time: dm.time, paused: false, highlight: false
+                    time: dm.time, src: dm.src || '', highlight: false
                 });
             }
         }
@@ -473,7 +502,6 @@
 
     function pruneActive() {
         active = active.filter(d => {
-            if (d.paused) return true;
             if (d.fixed) return (playTime - d.born) < d.life;
             const x = d.startX - (playTime - d.born) * d.spd;
             return x > -(lW * 2);
@@ -493,9 +521,7 @@
             ctx.globalAlpha = cfg.opacity;
             for (const d of active) {
                 let x;
-                if (d.paused) {
-                    x = d.pauseX;
-                } else if (d.fixed) {
+                if (d.fixed) {
                     if ((playTime - d.born) > d.life) continue;
                     x = d.x;
                 } else {
@@ -518,6 +544,14 @@
                     ctx.fill();
                 }
                 ctx.drawImage(tex.c, dx, dy);
+                if (d.src) {
+                    ctx.globalAlpha = cfg.opacity * 0.6;
+                    ctx.fillStyle = '#888';
+                    ctx.font = `10px ${FONT}`;
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(d.src, dx + tex.w - tex.pad + 4, dy + tex.h);
+                    ctx.globalAlpha = cfg.opacity;
+                }
             }
             ctx.restore();
         }
@@ -541,6 +575,26 @@
             ctx.font = `12px ${FONT}`;
             ctx.textBaseline = 'top';
             ctx.fillText(`弹幕区域 ${cfg.area}%`, 10, gy + 6);
+            ctx.restore();
+        }
+
+        if (cfg.heatmap && heatBars.length && vid) {
+            ctx.save();
+            ctx.globalAlpha = 0.35;
+            ctx.fillStyle = '#4f8cff';
+            const baseY = lH - 4;
+            for (const bar of heatBars) {
+                ctx.fillRect(bar.x * lW, baseY - bar.h, bar.w * lW, bar.h);
+            }
+            ctx.globalAlpha = 0.8;
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+            ctx.lineWidth = 1;
+            const dur = vid.duration > 0 ? vid.duration : 1;
+            const px = (vid.currentTime / dur) * lW;
+            ctx.beginPath();
+            ctx.moveTo(px, baseY - 28);
+            ctx.lineTo(px, baseY);
+            ctx.stroke();
             ctx.restore();
         }
     }
@@ -625,7 +679,6 @@
 
             for (let i = active.length - 1; i >= 0; i--) {
                 const d = active[i];
-                if (d.paused) continue;
                 let x;
                 if (d.fixed) {
                     if ((playTime - d.born) > d.life) continue;
@@ -634,9 +687,6 @@
                     x = d.startX - (playTime - d.born) * d.spd;
                 }
                 if (cx >= x - 4 && cx <= x + d.w + 4 && cy >= d.y - 4 && cy <= d.y + fs * 1.35 + 4) {
-                    d.paused = true;
-                    d.pauseX = x;
-                    d.pauseTime = playTime;
                     d.highlight = true;
 
                     const t = d.time;
@@ -647,9 +697,7 @@
                     tooltipEl.style.opacity = '1';
 
                     setTimeout(() => {
-                        d.paused = false;
                         d.highlight = false;
-                        d.born += (playTime - d.pauseTime);
                         tooltipEl.style.opacity = '0';
                     }, 3000);
 
@@ -903,6 +951,7 @@
         root.append(
             $('div', '显示', 'color:#666;font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;'),
             row('弹幕开关', tgl(() => cfg.on, () => { cfg.on = !cfg.on; save(); ensureLoop(); })),
+            row('热力图', tgl(() => cfg.heatmap, () => { cfg.heatmap = !cfg.heatmap; save(); ensureLoop(); })),
             row('透明度',   sld(0, 1, 0.05, cfg.opacity, v => v.toFixed(2), v => { cfg.opacity = v; save(); ensureLoop(); })),
             row('显示区域', sld(10, 80, 5, cfg.area, v => v + '%', v => { cfg.area = v; save(); ensureLoop(); })),
             row('文字描边', tgl(() => cfg.outline, () => { cfg.outline = !cfg.outline; save(); texCache.clear(); ensureLoop(); })),

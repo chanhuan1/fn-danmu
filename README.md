@@ -62,6 +62,18 @@
 | 飞牛影视（fnOS）| 已部署并可访问 |
 | [danmu-api](https://github.com/huangxd-/danmu_api) | 弹幕数据服务，已部署并可访问 |
 
+### 如果你还没有 danmu-api
+
+danmu-api 是一个独立部署的弹幕数据服务，本项目不包含它。最简单的部署方式：
+
+```bash
+docker run -d --name danmu-api -p 9321:9321 logvar/danmu-api:latest
+```
+
+然后把 `DM_URL` 设为 `http://<你的NAS-IP>:9321` 即可。danmu-api 支持爱优腾芒哔咪等多个平台的弹幕源，免提前下载。
+
+如果你已经部署了 danmu-api（例如通过 Vercel/Cloudflare/Netlify），只需要把 `DM_URL` 指向对应地址即可。
+
 ## 部署方式一：使用预构建镜像（推荐）
 
 **1. 创建目录和配置文件**
@@ -143,6 +155,7 @@ docker compose up -d --build
 | `DM_URL` | danmu-api 弹幕服务地址 | `http://192.168.10.252:9321` |
 | `PORT` | 代理 HTTP 端口 | `3000` |
 | `HTTPS_PORT` | 代理 HTTPS 端口（自签证书） | `3443` |
+| `LOG_LEVEL` | 日志级别（debug / info / warn / error） | `info` |
 
 ## HTTPS 说明
 

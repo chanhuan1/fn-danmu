@@ -2,6 +2,9 @@
   "name": "danmaku-proxy",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "test": "node --test test/core.test.js"
+  },
   "dependencies": {
     "http-proxy": "^1.18.1"
   }

@@ -4,12 +4,23 @@ const httpProxy = require('http-proxy');
 const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execSync } = require('child_process');
+const { buildAuthx, getPayloadHashFromUrl, decompress, isPageRequest, createVideoInfoCache } = require('./lib/core');
 
 const FN_URL = process.env.FN_URL || 'http://192.168.10.252:5666';
 const DM_URL = process.env.DM_URL || 'http://192.168.10.252:9321';
 const PORT   = process.env.PORT   || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
+const LOG_LEVEL = (process.env.LOG_LEVEL || 'info').toLowerCase();
+
+const LOG_PRIORITIES = { debug: 10, info: 20, warn: 30, error: 40 };
+
+function log(level, ...args) {
+    if ((LOG_PRIORITIES[level] || 20) >= (LOG_PRIORITIES[LOG_LEVEL] || 20)) {
+        console[level === 'debug' ? 'log' : level](...args);
+    }
+}
 
 const isFniuHttps = FN_URL.startsWith('https');
 const isDmHttps   = DM_URL.startsWith('https');
@@ -18,11 +29,25 @@ console.log(`[启动] 飞牛: ${FN_URL} (HTTPS: ${isFniuHttps})`);
 console.log(`[启动] 弹幕: ${DM_URL} (HTTPS: ${isDmHttps})`);
 console.log(`[启动] HTTP端口: ${PORT}  HTTPS端口: ${HTTPS_PORT}`);
 
-// ═══ 读取弹幕脚本 ═══
-let danmakuScript = fs.readFileSync(path.join(__dirname, 'danmaku.js'), 'utf8');
-const configTag = `<script>window.__DMAPI__='/dm-api';</script>`;
-const injectTag = `${configTag}<script>${danmakuScript}</script>`;
-console.log(`[启动] 脚本: ${danmakuScript.length} 字符`);
+// ═══ 弹幕脚本（惰性读取，支持热更新） ═══
+let danmakuMtime = 0;
+let danmakuScriptCache = '';
+
+function getDanmakuScript() {
+    const scriptPath = path.join(__dirname, 'danmaku.js');
+    const mtime = fs.statSync(scriptPath).mtimeMs;
+    if (mtime !== danmakuMtime) {
+        danmakuScriptCache = fs.readFileSync(scriptPath, 'utf8');
+        danmakuMtime = mtime;
+        log('debug', '[脚本] 重新读取:', danmakuScriptCache.length, '字符');
+    }
+    return danmakuScriptCache;
+}
+
+function buildInjectTag() {
+    const script = getDanmakuScript();
+    return `<script>window.__DMAPI__='/dm-api';</script><script>${script}</script>`;
+}
 
 // ═══ 自签证书 ═══
 function ensureCerts() {
@@ -59,16 +84,20 @@ function ensureCerts() {
 const baseOpts = { changeOrigin: true, secure: false };
 
 const fnPassthrough = httpProxy.createProxyServer({ ...baseOpts, target: FN_URL, ws: true });
+// 只拦截 play/info：其他透传响应直接 pipe，避免大文件被缓冲进内存
 const fnIntercept   = httpProxy.createProxyServer({ ...baseOpts, target: FN_URL });
 const dmProxy       = httpProxy.createProxyServer({ ...baseOpts, target: DM_URL });
 
 // 安全的错误处理（区分 HTTP response 和 WebSocket socket）
 function safeError(err, req, res, tag) {
-    console.error(`[${tag}]`, req.url, err.message);
+    log('error', `[${tag}]`, req.url, err.message);
     if (!res) return;
     // HTTP 响应对象有 writeHead，WebSocket 升级的 socket 没有
     if (typeof res.writeHead === 'function') {
-        if (!res.headersSent) { res.writeHead(502); res.end('服务不可用'); }
+        if (!res.headersSent) {
+            res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: true, tag, message: err.message, url: req.url }));
+        }
     } else if (typeof res.end === 'function') {
         // 是 socket，直接关闭
         try { res.end(); } catch {}
@@ -76,74 +105,72 @@ function safeError(err, req, res, tag) {
 }
 
 fnPassthrough.on('error', (err, req, res) => safeError(err, req, res, '透传'));
-fnPassthrough.on('proxyRes', (proxyRes, req, res) => {
-    // 拦截 play/info API 响应，缓存视频信息
-    if (req.url.includes('/play/info')) {
-        const ce = proxyRes.headers['content-encoding'] || '';
-        const chunks = [];
-        proxyRes.on('data', chunk => chunks.push(chunk));
-        proxyRes.on('end', () => {
-            try {
-                const raw = Buffer.concat(chunks);
-                const body = ce ? decompress(raw, ce) : raw;
-                const data = JSON.parse(body.toString('utf8'));
-                if (data.code === 0 && data.data?.item) {
-                    const item = data.data.item;
-                    videoInfoCache = {
-                        guid: item.guid || '',
-                        title: item.tv_title || item.title || '',
-                        season: item.season_number || 1,
-                        episode: item.episode_number || 1,
-                        isSeries: !!item.tv_title
-                    };
-                    console.log('[视频信息] 已缓存:', JSON.stringify(videoInfoCache));
-                }
-            } catch(e) { console.log('[视频信息] 解析失败:', e.message); }
-            try {
-                res.writeHead(proxyRes.statusCode, proxyRes.headers);
-                res.end(raw);
-            } catch {}
-        });
-    }
-});
 fnIntercept.on('error', (err, req, res)   => safeError(err, req, res, '拦截'));
 dmProxy.on('error', (err, req, res)       => safeError(err, req, res, '弹幕'));
 
 let injectCount = 0;
-let videoInfoCache = null;  // 缓存从 play/info 拦截到的视频信息
+const videoInfoCache = createVideoInfoCache();
+
+function cacheVideoInfo(item) {
+    const guid = item.guid || '';
+    if (!guid) return;
+    videoInfoCache.set(guid, {
+        guid,
+        title: item.tv_title || item.title || '',
+        season: item.season_number || 1,
+        episode: item.episode_number || 1,
+        isSeries: !!item.tv_title
+    });
+    log('debug', '[视频信息] 已缓存 guid:', guid, JSON.stringify(videoInfoCache.get(guid)));
+}
+
+// 专用代理：只拦截 play/info 响应，缓冲后解析并转发
+const fnPlayInfo = httpProxy.createProxyServer({ ...baseOpts, target: FN_URL });
+fnPlayInfo.on('error', (err, req, res) => safeError(err, req, res, '播放信息'));
+fnPlayInfo.on('proxyRes', (proxyRes, req, res) => {
+    const ce = proxyRes.headers['content-encoding'] || '';
+    const chunks = [];
+    proxyRes.on('data', chunk => chunks.push(chunk));
+    proxyRes.on('end', () => {
+        try {
+            const raw = Buffer.concat(chunks);
+            const body = ce ? decompress(raw, ce) : raw;
+            const data = JSON.parse(body.toString('utf8'));
+            if (data.code === 0 && data.data?.item) {
+                cacheVideoInfo(data.data.item);
+            }
+        } catch(e) { log('warn', '[视频信息] 解析失败:', e.message); }
+        try {
+            res.writeHead(proxyRes.statusCode, proxyRes.headers);
+            res.end(raw);
+        } catch {}
+    });
+});
 
 // ═══ 请求判断 ═══
-function isPageRequest(req) {
-    const url = req.url.split('?')[0];
-    if (url.startsWith('/v/api/'))    return false;
-    if (url.startsWith('/api/'))      return false;
-    if (url.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|mp4|m3u8|ts|map)$/)) return false;
-    const xReq = req.headers['x-requested-with'] || '';
-    if (xReq === 'XMLHttpRequest') return false;
-    const secFetch = req.headers['sec-fetch-mode'] || '';
-    if (secFetch === 'cors' || secFetch === 'no-cors' || secFetch === 'same-origin') return false;
-    const accept = req.headers['accept'] || '';
-    return accept.includes('text/html');
-}
-
-function decompress(buf, encoding) {
-    if (encoding === 'gzip') return zlib.gunzipSync(buf);
-    if (encoding === 'br') return zlib.brotliDecompressSync(buf);
-    if (encoding === 'deflate') return zlib.inflateSync(buf);
-    return buf;
-}
 
 // ═══ 请求处理器（HTTP/HTTPS 共用） ═══
 function handleRequest(req, res) {
-    if (req.url === '/dm-api/video-info') {
+    if (req.url.startsWith('/dm-api/video-info')) {
+        const guid = new URL(req.url, 'http://localhost').searchParams.get('guid') || '';
+        const info = guid ? videoInfoCache.get(guid) : null;
         res.writeHead(200, {'Content-Type': 'application/json; charset=utf-8'});
-        res.end(JSON.stringify(videoInfoCache || {}));
+        res.end(JSON.stringify(info || {}));
         return;
     }
     if (req.url.startsWith('/dm-api/')) {
         req.url = req.url.replace('/dm-api', '');
         dmProxy.web(req, res);
         return;
+    }
+
+    // 签名预计算：为缺少 authx 的飞牛 API 请求补签名
+    if (req.url.startsWith('/v/api/') && !req.headers['authx']) {
+        const pathname = req.url.split('?')[0];
+        const payloadHash = req.method === 'GET'
+            ? getPayloadHashFromUrl(req.url)
+            : crypto.createHash('md5').update('').digest('hex');
+        req.headers['authx'] = buildAuthx(pathname, payloadHash);
     }
 
     if (isPageRequest(req)) {
@@ -154,7 +181,11 @@ function handleRequest(req, res) {
         return;
     }
 
-    fnPassthrough.web(req, res);
+    if (req.url.includes('/play/info')) {
+        fnPlayInfo.web(req, res);
+    } else {
+        fnPassthrough.web(req, res);
+    }
 }
 
 function handleUpgrade(req, socket, head) {
@@ -175,6 +206,7 @@ fnIntercept.on('proxyRes', (proxyRes, req, res) => {
                 let raw = Buffer.concat(chunks);
                 let body = decompress(raw, ce).toString('utf8');
 
+                const injectTag = buildInjectTag();
                 if (body.includes('</head>')) {
                     body = body.replace('</head>', `${injectTag}</head>`);
                 } else if (body.includes('</body>')) {
@@ -184,7 +216,7 @@ fnIntercept.on('proxyRes', (proxyRes, req, res) => {
                 }
 
                 injectCount++;
-                console.log(`[注入 #${injectCount}] ${req.url.substring(0, 80)}`);
+                log('debug', `[注入 #${injectCount}] ${req.url.substring(0, 80)}`);
 
                 const buf = Buffer.from(body, 'utf8');
                 const headers = { ...proxyRes.headers };
@@ -196,7 +228,7 @@ fnIntercept.on('proxyRes', (proxyRes, req, res) => {
                 res.writeHead(status, headers);
                 res.end(buf);
             } catch (e) {
-                console.error('[注入失败]', e.message);
+                log('error', '[注入失败]', e.message);
                 try {
                     const headers = { ...proxyRes.headers };
                     delete headers['content-encoding'];
